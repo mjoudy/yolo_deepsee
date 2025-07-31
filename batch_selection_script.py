@@ -11,54 +11,70 @@ import pandas as pd
 from PIL import Image
 import yaml
 
-# === CONFIGURATION - MODIFY THESE FOR YOUR SETUP ===
-# For Google Colab with Google Drive
-BASE_PATH = "/content/drive/MyDrive/DeepSeaProject/dataset_seanoe_101899"  # Your Google Drive path
-IMAGES_FOLDER = "images/Images"  # Relative to BASE_PATH
-CSV_NAME = "raw-dataset.csv"  # Relative to BASE_PATH
-
-# Dataset parameters
-N = "all"  # Number of images to select - use "all" for all images, or a number like 100
-SELECTED_CLASSES = ["Buccinid snail"]  # Classes to include
-RANDOM_SEED = 42  # For reproducible results
+# === DEFAULT CONFIGURATION ===
+# These are defaults - you can override them when calling functions
+DEFAULT_BASE_PATH = "/content/drive/MyDrive/DeepSeaProject/dataset_seanoe_101899"
+DEFAULT_IMAGES_FOLDER = "images/Images"
+DEFAULT_CSV_NAME = "raw-dataset.csv"
+DEFAULT_N = "all"
+DEFAULT_SELECTED_CLASSES = ["Buccinid snail"]
+DEFAULT_RANDOM_SEED = 42
 
 
 
 # === END CONFIGURATION ===
 
-# Build full paths
-IMAGES_DIR = os.path.join(BASE_PATH, IMAGES_FOLDER)
-CSV_PATH = os.path.join(BASE_PATH, CSV_NAME)
 
-def create_batch_dataset(N_images=None, classes=None, output_suffix=None):
+
+def create_batch_dataset(N_images=None, classes=None, output_suffix=None, 
+                        base_path=None, images_folder=None, csv_name=None, random_seed=None):
     """
     Create a batch dataset by randomly selecting N images and their annotations.
     
     Args:
-        N_images (int): Number of images to select (uses global N if None)
-        classes (list): List of class names to include (uses global SELECTED_CLASSES if None)
-        output_suffix (str): Suffix for output folders (uses N if None)
+        N_images: Number of images to select (uses DEFAULT_N if None)
+        classes: List of class names to include (uses DEFAULT_SELECTED_CLASSES if None)
+        output_suffix: Suffix for output folders (uses N_images if None)
+        base_path: Base path for data (uses DEFAULT_BASE_PATH if None)
+        images_folder: Images folder name (uses DEFAULT_IMAGES_FOLDER if None)
+        csv_name: CSV file name (uses DEFAULT_CSV_NAME if None)
+        random_seed: Random seed (uses DEFAULT_RANDOM_SEED if None)
     """
-    # Use global defaults if not provided
+    # Use defaults if not provided
     if N_images is None:
-        N_images = N
+        N_images = DEFAULT_N
     if classes is None:
-        classes = SELECTED_CLASSES
+        classes = DEFAULT_SELECTED_CLASSES
+    if base_path is None:
+        base_path = DEFAULT_BASE_PATH
+    if images_folder is None:
+        images_folder = DEFAULT_IMAGES_FOLDER
+    if csv_name is None:
+        csv_name = DEFAULT_CSV_NAME
+    if random_seed is None:
+        random_seed = DEFAULT_RANDOM_SEED
     if output_suffix is None:
         output_suffix = str(N_images)
     
-    # Setup output folders
-    output_images_folder = f"images_{output_suffix}"
-    output_labels_folder = f"labels_{output_suffix}"
+    # Build full paths
+    images_dir = os.path.join(base_path, images_folder)
+    csv_path = os.path.join(base_path, csv_name)
+    
+    # Set random seed
+    random.seed(random_seed)
+    
+    # Setup output folders (in base_path)
+    output_images_folder = os.path.join(base_path, f"images_{output_suffix}")
+    output_labels_folder = os.path.join(base_path, f"labels_{output_suffix}")
     
     # Create output directories
     os.makedirs(output_images_folder, exist_ok=True)
     os.makedirs(output_labels_folder, exist_ok=True)
     
     print(f"🔧 Configuration:")
-    print(f"   - Base path: {BASE_PATH}")
-    print(f"   - Images folder: {IMAGES_DIR}")
-    print(f"   - CSV file: {CSV_PATH}")
+    print(f"   - Base path: {base_path}")
+    print(f"   - Images folder: {images_dir}")
+    print(f"   - CSV file: {csv_path}")
     print(f"   - Classes: {classes}")
     print(f"   - Number of images: {N_images}")
     print(f"   - Output folders: {output_images_folder}, {output_labels_folder}")
@@ -66,10 +82,10 @@ def create_batch_dataset(N_images=None, classes=None, output_suffix=None):
     
     # Load annotations
     try:
-        df = pd.read_csv(CSV_PATH, sep=';', low_memory=False)
-        print(f"✅ Loaded {len(df)} annotations from {CSV_PATH}")
+        df = pd.read_csv(csv_path, sep=';', low_memory=False)
+        print(f"✅ Loaded {len(df)} annotations from {csv_path}")
     except FileNotFoundError:
-        print(f"❌ Error: CSV file not found at {CSV_PATH}")
+        print(f"❌ Error: CSV file not found at {csv_path}")
         print(f"   Please check if the path is correct and the file exists.")
         return
     except Exception as e:
@@ -98,7 +114,7 @@ def create_batch_dataset(N_images=None, classes=None, output_suffix=None):
     # Process each selected image
     processed_count = 0
     for i, img_name in enumerate(selected_images, 1):
-        src_img_path = os.path.join(IMAGES_DIR, img_name)
+        src_img_path = os.path.join(images_dir, img_name)
         dst_img_path = os.path.join(output_images_folder, img_name)
         
         if not os.path.exists(src_img_path):
@@ -153,22 +169,25 @@ def create_batch_dataset(N_images=None, classes=None, output_suffix=None):
     return {
         'images_folder': output_images_folder,
         'labels_folder': output_labels_folder,
-        'dataset_yaml': f"{output_suffix}_dataset.yaml",
+        'dataset_yaml': os.path.join(base_path, f"{output_suffix}_dataset.yaml"),
         'processed_count': processed_count,
         'classes': classes
     }
 
-def create_dataset_yaml(output_suffix, classes):
+def create_dataset_yaml(output_suffix, classes, base_path=None):
     """Create YOLO dataset configuration file."""
+    if base_path is None:
+        base_path = DEFAULT_BASE_PATH
+        
     dataset_config = {
-        'path': '.',
+        'path': base_path,  # Use base_path as the dataset root
         'train': f'images_{output_suffix}',
         'val': f'images_{output_suffix}',  # Using same data for train/val for now
         'nc': len(classes),
         'names': classes
     }
     
-    yaml_path = f"{output_suffix}_dataset.yaml"
+    yaml_path = os.path.join(base_path, f"{output_suffix}_dataset.yaml")
     with open(yaml_path, 'w') as f:
         yaml.dump(dataset_config, f, default_flow_style=False)
     
@@ -176,12 +195,9 @@ def create_dataset_yaml(output_suffix, classes):
     return yaml_path
 
 if __name__ == "__main__":
-    # Set random seed for reproducibility
-    random.seed(RANDOM_SEED)
-    
-    # Create dataset and get outputs
+    # Create dataset and get outputs with default settings
     results = create_batch_dataset()
     
     if results:
         # Create dataset YAML file
-        create_dataset_yaml(str(N), results['classes']) 
+        create_dataset_yaml(str(DEFAULT_N), results['classes'], DEFAULT_BASE_PATH) 
