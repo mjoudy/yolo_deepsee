@@ -1,0 +1,12 @@
+cleaned-dataset_yolo/
+images/
+images_100/
+labels_100/
+images_bytho_463/
+labels_bytho_463/
+
+expert-dataset.csv
+raw-dataset.csv
+
+YOLOv8-weights-for-Buccinidae-detection.pt
+YOLOv8-weights-for-Bythograeidae-detection.pt
